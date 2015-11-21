@@ -1,0 +1,20 @@
+appbase.searchStream({
+            type: 'client',
+            body: {
+              "query": {
+                "filtered": {
+                  "query": {
+                    "match" : { "appversion_no" :  notificationobj.state.appversion_no}
+                  },
+                  "filter": {
+                    "range" : {
+                      "age" : {
+                          "lte" : notificationobj.state.maxage,
+                          "gte" : notificationobj.state.minage
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }).on('data', function(response) {
