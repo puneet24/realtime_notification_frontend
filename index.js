@@ -1,3 +1,6 @@
+/*
+  Appbase credentials.
+*/
 var appbase = new Appbase({
   url: 'https://scalr.api.appbase.io',
   appname: 'testgsoc',
@@ -5,6 +8,13 @@ var appbase = new Appbase({
   password: '1c46a541-98fa-404c-ad61-d41571a82e14'
 });
 
+/*
+  Notification panel React Element
+  Description :- This panel is for sending notifications taking candition in elastic search format.
+                 The task of this panel includes :- creating notification entry in appbase whenever 
+                 the client matches the condition. It also sends notification to the clients which 
+                 gets added afterwards and matches the condition.
+*/
 var NotificationPanel = React.createClass({
   getInitialState : function() {
     return {minage : -1,maxage : -1,appversion_no : -1,country : null,message : null};
@@ -142,6 +152,9 @@ var Client = React.createClass({
     var clientobj = this;
     var clientinfo = this.props.clientinfo;
     var clientid = this.props.clientid;
+    /*
+      Appbase search method for fetching all the existing notification messages of client.
+    */
     appbase.search({
       type: "notification",
       body: {
@@ -157,6 +170,11 @@ var Client = React.createClass({
     }).on('error', function(err) {
       console.log("search error: ", err);
     });
+
+    /*
+      Appbase search stream method for fetching notificaton messages whenever any notification hits in 
+      appbase notification document.
+    */
     appbase.searchStream({
       type: 'notification',
       body: {
@@ -193,6 +211,14 @@ var Client = React.createClass({
   }
 });
 
+/*
+  Addclient React Element.
+  Description :- This module has the functionality of adding new clients and storing the client Information
+                 into appbase storage. The another functionality of this module is to display all the 
+                 clients dyanamically whenever any client is added through any instance in realtme. This
+                 module uses the 'client' react element described above for displaying all the clients and 
+                 it passes the clientinfo as the property to that element.
+*/
 var Addclient = React.createClass({
   getInitialState : function() {
     return {clientinfo : [],nickname : "XYZ",age : 20,appversion_no : 1,country : 'INDIA'};
@@ -200,6 +226,9 @@ var Addclient = React.createClass({
   addclient : function() {
     var stateobj = this.state;
     console.log(stateobj);
+    /*
+      Storing client information in client document using appbase index method.
+    */
     appbase.index({
       type: 'client',
       body: { "nickname" : stateobj.nickname,"age" : stateobj.age, "appversion_no" : stateobj.appversion_no, "country" : stateobj.country }
@@ -211,6 +240,9 @@ var Addclient = React.createClass({
   },
   removeclient : function(event) {
     var newarray = this.state.clientinfo;
+    /*
+      Searching all the notification messages in the notification type of client.
+    */
     appbase.search({
       type: "notification",
       body: {
@@ -219,6 +251,9 @@ var Addclient = React.createClass({
         }
       }
     }).on('data', function(res) {
+      /*
+        Deleting all the messages from notification type of that client.
+      */
       for(var i=0;i<res.hits.total;i++){
         appbase.delete({
           type: 'notification',
@@ -232,7 +267,7 @@ var Addclient = React.createClass({
     }).on('error', function(err) {
       console.log("search error: ", err);
     });
-    /* finding index */
+    /* Finding index from state variable array (clientinfo) of this client for removing from array*/
     var index = -1;
     for(var i = 0;i<newarray.length;i++){
       if(newarray[i]._id == event.target.id){
@@ -241,7 +276,11 @@ var Addclient = React.createClass({
       }
     }
     newarray.splice(index,1);
+    /* Updating clientinfo array by removing this client from array. */
     this.setState({ clientinfo : newarray });
+    /*
+      Deleting this client entry from client document at appbase.
+    */
     appbase.delete({
       type: 'client',
       id : event.target.id
@@ -265,6 +304,9 @@ var Addclient = React.createClass({
   },
   componentWillMount : function() {
     var addclientobj = this;
+    /*
+      Searching all the existing clients from the appbase storage, client document.
+    */
     appbase.search({
       type: "client",
       body: {
@@ -274,6 +316,9 @@ var Addclient = React.createClass({
       }
     }).on('data', function(res) {
       console.log(res);
+      /*
+        Adding all the clients information into clientinfo array.
+      */
       for(var i=0;i<res.hits.total;i++){
         console.log(res.hits.hits[i]._source);
         var obj = {_id : res.hits.hits[i]._id,_source : res.hits.hits[i]._source};
@@ -286,6 +331,10 @@ var Addclient = React.createClass({
   },
   componentDidMount : function() {
     var addclientobj = this;
+    /*
+      Starting appbase search stream method for fetching all the newly created clients from any instance
+      in realtme.
+    */
     appbase.searchStream({
       type: "client",
       body: {
@@ -296,6 +345,9 @@ var Addclient = React.createClass({
     }).on('data', function(res) {
       if(res._deleted != true) {
         var obj = {_id : res._id,_source : res._source};
+        /*
+          Adding the newly found client to the clientinfo array in order to display in realtime.
+        */
         addclientobj.setState({clientinfo : addclientobj.state.clientinfo.concat([obj])});
       }
     }).on('error', function(err) {
@@ -328,12 +380,17 @@ var Addclient = React.createClass({
   }
 });
 
-
+/*
+  Adding react element to 'client panel' html element.
+*/
 ReactDOM.render(
   <Addclient />,
   document.getElementById('client_panel')
 );
 
+/*
+  Adding react element to 'notification_panel' html element.
+*/
 ReactDOM.render(
   <NotificationPanel />,
   document.getElementById('notification_panel')
