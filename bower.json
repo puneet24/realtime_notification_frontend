@@ -1,0 +1,29 @@
+{
+  "name": "realtime_notification_frontend",
+  "version": "0.0.0",
+  "homepage": "https://github.com/puneet24/realtime_notification_frontend",
+  "authors": [
+    "punsa <puneet.241994.agarwal@gmail.com>"
+  ],
+  "description": "realtime notification using reactjs and appbase",
+  "main": "index.html",
+  "moduleType": [
+    "globals",
+    "node"
+  ],
+  "keywords": [
+    "realtime",
+    "notification"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "appbase-js": "0.9.0"
+  }
+}

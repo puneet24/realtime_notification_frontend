@@ -9,6 +9,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-core/5.8.23/browser.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" integrity="sha512-dTfge/zgoMYpP7QbHy4gWMEGsbsdZeCXz7irItjcC3sPUFtf0kuFbDz/ixG7ArTxmDjLXDmezHubeNikyKGVyQ==" crossorigin="anonymous">
+    <script src="bower_components/smart-time-ago/lib/timeago.js"></script>
   </head>
   <body>
     <div class="container">
@@ -75,10 +76,12 @@
               }
             }
           }).on('data', function(res) {
+            console.log(res);
             for(var i=0;i<res.hits.total;i++){
+              var dates = new Date();
               appbase.index({
                 type: 'notification',
-                body: { "clientid" : res.hits.hits[i]._id, "message" : notificationobj.state.message }
+                body: { "clientid" : res.hits.hits[i]._id, "message" : notificationobj.state.message,"timestamp" : dates.toISOString() }
               }).on('data', function(response) {
                 console.log(response);
               }).on('error', function(error) {
@@ -115,9 +118,10 @@
             }
           }).on('data', function(response) {
             console.log(response);
+            var date = new Date();
             appbase.index({
               type: 'notification',
-              body: { "clientid" : response._id, "message" : notificationobj.state.message }
+              body: { "clientid" : response._id, "message" : notificationobj.state.message,"timestamp" : date.toISOString() }
             }).on('data', function(response) {
               console.log(response);
             }).on('error', function(error) {
@@ -167,7 +171,8 @@
         },
         componentWillMount : function() {
           var clientobj = this;
-          var clientid = this.props.clientid
+          var clientinfo = this.props.clientinfo;
+          var clientid = this.props.clientid;
           appbase.search({
             type: "notification",
             body: {
@@ -177,7 +182,8 @@
             }
           }).on('data', function(res) {
             for(var i=0;i<res.hits.total;i++){
-              clientobj.setState({msglist : clientobj.state.msglist.concat([res.hits.hits[i]._source.message])});
+              var obj = {"msg" : res.hits.hits[i]._source.message,"timestamp" : res.hits.hits[i]._source.timestamp};
+              clientobj.setState({msglist : clientobj.state.msglist.concat([obj])});
             }
           }).on('error', function(err) {
             console.log("search error: ", err);
@@ -190,22 +196,25 @@
               }
             }
           }).on('data', function(response) {
-            clientobj.setState({ msglist : clientobj.state.msglist.concat(response._source.message) });
+            var obj = {"msg" : response._source.message,"timestamp" : response._source.timestamp};
+            clientobj.setState({ msglist : clientobj.state.msglist.concat([obj]) });
           }).on('error', function(error) {
             console.log("getStream() failed with: ", error)
           });
         },
         render : function() {
           var clientobj = this;
-          var clientid = this.props.clientid
+          var clientid = this.props.clientid;
           return (
             <div>
-            <p id = {this.props.clientid}>Client  {this.props.clientid} {this.state.msglist.length}</p>
+            <p>Client details</p>
+            <p>clientid : {clientid}, age : {this.props.clientinfo.age}, appversio_no : {this.props.clientinfo.appversion_no}, country : {this.props.clientinfo.country}</p>
+            <b><p id = {clientid}>{this.props.clientinfo.nickname} {this.state.msglist.length}</p></b>
             <div className={"well"}>
               {
                 this.state.msglist.map(function(msg){
                   return (
-                    <p key={msg}>{msg}</p>
+                    <div><span key={msg.msg}>{msg.msg} </span><time className="timeago" dateTime={msg.timestamp}></time></div>
                   )
                 })
               }
@@ -217,31 +226,22 @@
 
       var Addclient = React.createClass({
         getInitialState : function() {
-          return {clientids : [],age : 20,appversion_no : 1,country : 'INDIA'};
+          return {clientinfo : [],nickname : "XYZ",age : 20,appversion_no : 1,country : 'INDIA'};
         },
         addclient : function() {
           var stateobj = this.state;
-          for(var i=1;;i++){
-            if(this.state.clientids.indexOf(i) == -1){
-              this.setState({clientids : this.state.clientids.concat([i])});
-              appbase.index({
-                type: 'client',
-                id: i,
-                body: { "age" : stateobj.age, "appversion_no" : stateobj.appversion_no, "country" : stateobj.country }
-                }).on('data', function(response) {
-                  console.log(response);
-                }).on('error', function(error) {
-                  console.log(error);
-                });
-              break;
-            }
-          }
+          console.log(stateobj);
+          appbase.index({
+            type: 'client',
+            body: { "nickname" : stateobj.nickname,"age" : stateobj.age, "appversion_no" : stateobj.appversion_no, "country" : stateobj.country }
+          }).on('data', function(response) {
+              console.log(response);
+          }).on('error', function(error) {
+              console.log(error);
+          });
         },
         removeclient : function(event) {
-          var newarray = this.state.clientids;
-          newarray.splice(newarray.indexOf(parseInt(event.target.id)),1);
-          this.setState({ clientids : newarray});
-
+          var newarray = this.state.clientinfo;
           appbase.search({
             type: "notification",
             body: {
@@ -263,7 +263,16 @@
           }).on('error', function(err) {
             console.log("search error: ", err);
           });
-
+          /* finding index */
+          var index = -1;
+          for(var i = 0;i<newarray.length;i++){
+            if(newarray[i]._id == event.target.id){
+              index = i;
+              break;
+            }
+          }
+          newarray.splice(index,1);
+          this.setState({ clientinfo : newarray });
           appbase.delete({
             type: 'client',
             id : event.target.id
@@ -272,6 +281,9 @@
           }).on('error', function(err) {
             console.log("deletion error: ", err);
           });
+        },
+        saveNickname : function(event) {
+          this.setState({ nickname : event.target.value });
         },
         saveAge : function(event) {
           this.setState({ age : event.target.value });
@@ -292,8 +304,30 @@
               }
             }
           }).on('data', function(res) {
+            console.log(res);
             for(var i=0;i<res.hits.total;i++){
-              addclientobj.setState({clientids : addclientobj.state.clientids.concat([parseInt(res.hits.hits[i]._id)])});
+              console.log(res.hits.hits[i]._source);
+              var obj = {_id : res.hits.hits[i]._id,_source : res.hits.hits[i]._source};
+              addclientobj.setState({clientinfo : addclientobj.state.clientinfo.concat([obj])});
+            }
+          }).on('error', function(err) {
+            console.log("dwuhduwhduhw");
+            console.log("search error: ", err);
+          });
+        },
+        componentDidMount : function() {
+          var addclientobj = this;
+          appbase.searchStream({
+            type: "client",
+            body: {
+              query: {
+                match_all: {}
+              }
+            }
+          }).on('data', function(res) {
+            if(res._deleted != true) {
+              var obj = {_id : res._id,_source : res._source};
+              addclientobj.setState({clientinfo : addclientobj.state.clientinfo.concat([obj])});
             }
           }).on('error', function(err) {
             console.log("search error: ", err);
@@ -304,16 +338,18 @@
           
           return (
             <div>
+              <input key={'name'} onChange={this.saveNickname} value={this.state.nickname}></input>
               <input key={'age'} onChange={this.saveAge} value={this.state.age}></input>
               <input key={'appversionno'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input>
               <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input>
+              <p><b>JSON OBJECT</b> name  {this.state.nickname}, age {this.state.age}, appversion_no  {this.state.appversion_no}, country  {this.state.country} </p>
               <button onClick={this.addclient}>Add Client</button>
               {
-                this.state.clientids.map(function(client){
+                this.state.clientinfo.map(function(client){
                   return (
-                    <div>
-                    <Client key={client+"id"} clientid={client}/>
-                    <button  id={client} key={client} onClick={addclientobj.removeclient}>Delete Client</button>
+                    <div className="well">
+                    <Client key={client._id+"client"} clientinfo={client._source} clientid = {client._id} />
+                    <button  id={client._id} key={client._id} onClick={addclientobj.removeclient}>Delete Client</button>
                     </div>
                   )
                 })
@@ -334,6 +370,11 @@
         document.getElementById('notification_panel')
       );
 
+    </script>
+    <script>
+    $(document).ready(function(){
+      $('body').timeago();
+    });
     </script>
   </body>
 </html>
