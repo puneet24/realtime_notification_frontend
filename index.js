@@ -8,6 +8,109 @@ var appbase = new Appbase({
   password: '1c46a541-98fa-404c-ad61-d41571a82e14'
 });
 
+var Query = React.createClass({
+  componentWillMount : function() {
+    var queryobj = this;
+    appbase.searchStream({
+      type: 'client',
+      body: queryobj.props.queryinfo.querymsg
+    }).on('data', function(response) {
+      var date = new Date();
+      appbase.index({
+        type: 'notification',
+        body: { "clientid" : response._id, "message" : queryobj.props.queryinfo.msgval,"timestamp" : date.toISOString() }
+      }).on('data', function(response) {
+        console.log(response);
+      }).on('error', function(error) {
+        console.log(error);
+      });
+    }).on('error', function(error) {
+      console.log("getStream() failed with: ", error)
+    });
+  },
+  render : function() {
+    var queryobj = this;
+    var queryid = this.props.queryid;
+    return (
+      <div>
+      <p>Queryid : {queryid}, Creator : {this.props.queryinfo.creator}</p>
+      <p>Query : <b>{JSON.stringify(this.props.queryinfo.querymsg)}</b></p>
+      </div>
+    );
+  }
+});
+
+var ActiveNotification = React.createClass({
+  getInitialState : function() {
+    return {queryinfo : []};
+  },
+  componentWillMount : function() {
+    var notificationobj = this;
+    /*
+      Searching all the existing queries from the appbase storage, notification_queries document.
+    */
+    appbase.search({
+      type: "notification_queries",
+      body: {
+        query: {
+          match_all: {}
+        }
+      }
+    }).on('data', function(res) {
+      console.log(res);
+      /*
+        Adding all the queries information into queryinfo array.
+      */
+      for(var i=0;i<res.hits.total;i++){
+        var obj = {_id : res.hits.hits[i]._id,_source : res.hits.hits[i]._source};
+        notificationobj.setState({queryinfo : notificationobj.state.queryinfo.concat([obj])});
+      }
+    }).on('error', function(err) {
+      console.log("search error: ", err);
+    });
+  },
+  componentDidMount : function() {
+    var notificationobj = this;
+    /*
+      Starting appbase search stream method for fetching all the newly created notification queries from any instance
+      in realtme.
+    */
+    appbase.searchStream({
+      type: "notification_queries",
+      body: {
+        query: {
+          match_all: {}
+        }
+      }
+    }).on('data', function(res) {
+      if(res._deleted != true) {
+        var obj = {_id : res._id,_source : res._source};
+        /*
+          Adding the newly found client to the queryinfo array in order to display in realtime.
+        */
+        notificationobj.setState({queryinfo : notificationobj.state.queryinfo.concat([obj])});
+      }
+    }).on('error', function(err) {
+      console.log("search error: ", err);
+    });
+  },
+  render : function() {
+    return (
+      <div>
+        {
+          this.state.queryinfo.map(function(query){
+            return (
+              <div className="well">
+              <Query key={query._id+"query"} queryinfo={query._source} queryid = {query._id} />
+              </div>
+            )
+          })
+        }
+      </div>
+    );
+  }
+});
+
 /*
   Notification panel React Element
   Description :- This panel is for sending notifications taking candition in elastic search format.
@@ -17,7 +120,7 @@ var appbase = new Appbase({
 */
 var NotificationPanel = React.createClass({
   getInitialState : function() {
-    return {minage : -1,maxage : -1,appversion_no : -1,country : null,message : null};
+    return {minage : -1,maxage : -1,appversion_no : -1,country : null,message : null,creator : null};
   },
   saveMinage : function(event) {
     this.setState({ minage : event.target.value });
@@ -34,12 +137,13 @@ var NotificationPanel = React.createClass({
   saveMessage : function(event) {
     this.setState({ message : event.target.value });
   },
+  saveCreator : function(event) {
+    this.setState({ creator : event.target.value });
+  },
   sendNotification : function() {
     var notificationobj = this;
     console.log(notificationobj.state);
-    appbase.search({
-      type: "client",
-      body: {
+    var notification_query = {
         "query": {
           "filtered": {
             "query" : {
@@ -61,7 +165,22 @@ var NotificationPanel = React.createClass({
             }
           }
         }
-      }
+      };
+    /*
+      Adding query to notification queries type.
+    */
+    appbase.index({
+      type: 'notification_queries',
+      body: { "querymsg" : notification_query, "creator" : notificationobj.state.creator, "msgval" : notificationobj.state.message }
+    }).on('data', function(response) {
+      console.log(response);
+    }).on('error', function(error) {
+      console.log(error);
+    });
+
+    appbase.search({
+      type: "client",
+      body: notification_query
     }).on('data', function(res) {
       console.log(res);
       for(var i=0;i<res.hits.total;i++){
@@ -78,46 +197,6 @@ var NotificationPanel = React.createClass({
     }).on('error', function(err) {
       console.log("search error: ", err);
     });
-
-    appbase.searchStream({
-      type: 'client',
-      body: {
-        "query": {
-          "filtered": {
-            "query" : {
-                "bool" : {
-                  "should" : [
-                    { "match" : {"appversion_no" : notificationobj.state.appversion_no}},
-                    { "match" : {"country" : notificationobj.state.country}}
-                  ],
-                  "minimum_should_match" : 2
-                }
-            },
-            "filter": {
-                  "range" : {
-                    "age" : {
-                      "lte" : notificationobj.state.maxage,
-                      "gte" : notificationobj.state.minage
-                    }
-                  }
-            }
-          }
-        }
-      }
-    }).on('data', function(response) {
-      console.log(response);
-      var date = new Date();
-      appbase.index({
-        type: 'notification',
-        body: { "clientid" : response._id, "message" : notificationobj.state.message,"timestamp" : date.toISOString() }
-      }).on('data', function(response) {
-        console.log(response);
-      }).on('error', function(error) {
-        console.log(error);
-      });
-    }).on('error', function(error) {
-      console.log("getStream() failed with: ", error)
-    });
   },
   render : function() {
     return (
@@ -132,6 +211,8 @@ var NotificationPanel = React.createClass({
         <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input><br/>
         <b>Message : </b>
         <input key={'message'} onChange={this.saveMessage} value={this.state.message}></input><br/>
+        <b>Creator Name : </b>
+        <input key={'creator'} onChange={this.saveCreator} value={this.state.creator}></input><br/>
         <button onClick={this.sendNotification}>Send Notification</button>
       </div>
     );
@@ -379,6 +460,14 @@ var Addclient = React.createClass({
     );
   }
 });
+
+/*
+  Adding react element to 'active_notifications' panel' html element.
+*/
+ReactDOM.render(
+  <ActiveNotification />,
+  document.getElementById('active_notifications')
+);
 
 /*
   Adding react element to 'client panel' html element.
