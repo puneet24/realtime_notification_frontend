@@ -18,6 +18,7 @@ var Query = React.createClass({
       var date = new Date();
       appbase.index({
         type: 'notification',
+        id: queryobj.props.queryid+response._id,
         body: { "clientid" : response._id, "message" : queryobj.props.queryinfo.msgval,"timestamp" : date.toISOString() }
       }).on('data', function(response) {
         console.log(response);
@@ -34,6 +35,7 @@ var Query = React.createClass({
     return (
       <div>
       <p>Queryid : {queryid}, Creator : {this.props.queryinfo.creator}</p>
+      <p>querymsg : {this.props.queryinfo.msgval}</p>
       <p>Query : <b>{JSON.stringify(this.props.queryinfo.querymsg)}</b></p>
       </div>
     );
@@ -174,28 +176,27 @@ var NotificationPanel = React.createClass({
       body: { "querymsg" : notification_query, "creator" : notificationobj.state.creator, "msgval" : notificationobj.state.message }
     }).on('data', function(response) {
       console.log(response);
+      appbase.search({
+        type: "client",
+        body: notification_query
+      }).on('data', function(res) {
+        for(var i=0;i<res.hits.total;i++){
+          var dates = new Date();
+          appbase.index({
+            type: 'notification',
+            id: response._id+res.hits.hits[i]._id,
+            body: { "clientid" : res.hits.hits[i]._id, "message" : notificationobj.state.message,"timestamp" : dates.toISOString() }
+          }).on('data', function(response) {
+            console.log(response);
+          }).on('error', function(error) {
+            console.log(error);
+          });
+        }
+      }).on('error', function(err) {
+        console.log("search error: ", err);
+      });
     }).on('error', function(error) {
       console.log(error);
-    });
-
-    appbase.search({
-      type: "client",
-      body: notification_query
-    }).on('data', function(res) {
-      console.log(res);
-      for(var i=0;i<res.hits.total;i++){
-        var dates = new Date();
-        appbase.index({
-          type: 'notification',
-          body: { "clientid" : res.hits.hits[i]._id, "message" : notificationobj.state.message,"timestamp" : dates.toISOString() }
-        }).on('data', function(response) {
-          console.log(response);
-        }).on('error', function(error) {
-          console.log(error);
-        });
-      }
-    }).on('error', function(err) {
-      console.log("search error: ", err);
     });
   },
   render : function() {
@@ -229,6 +230,14 @@ var Client = React.createClass({
   getInitialState : function() {
     return {age : 20,appversion_no : 1,location : 'INDIA',msglist : []};
   },
+  check : function(msg_id) {
+    var clientobj = this;
+    for(var i=0;i<clientobj.state.msglist.length;i++){
+      if(clientobj.state.msglist[i].msgid == msg_id)
+        return i;
+    }
+    return (-1);
+  },
   componentWillMount : function() {
     var clientobj = this;
     var clientinfo = this.props.clientinfo;
@@ -245,8 +254,9 @@ var Client = React.createClass({
       }
     }).on('data', function(res) {
       for(var i=0;i<res.hits.total;i++){
-        var obj = {"msg" : res.hits.hits[i]._source.message,"timestamp" : res.hits.hits[i]._source.timestamp};
-        clientobj.setState({msglist : clientobj.state.msglist.concat([obj])});
+        var obj = {"msgid" : res.hits.hits[i]._id, "msg" : res.hits.hits[i]._source.message,"timestamp" : res.hits.hits[i]._source.timestamp};
+        if(clientobj.check(obj.msgid) == -1)
+          clientobj.setState({msglist : clientobj.state.msglist.concat([obj])});
       }
     }).on('error', function(err) {
       console.log("search error: ", err);
@@ -264,8 +274,9 @@ var Client = React.createClass({
         }
       }
     }).on('data', function(response) {
-      var obj = {"msg" : response._source.message,"timestamp" : response._source.timestamp};
-      clientobj.setState({ msglist : clientobj.state.msglist.concat([obj]) });
+      var obj = {"msgid" : response._id,"msg" : response._source.message,"timestamp" : response._source.timestamp};
+      if(clientobj.check(obj.msgid) == -1)
+        clientobj.setState({ msglist : clientobj.state.msglist.concat([obj]) });
     }).on('error', function(error) {
       console.log("getStream() failed with: ", error)
     });
@@ -306,7 +317,6 @@ var Addclient = React.createClass({
   },
   addclient : function() {
     var stateobj = this.state;
-    console.log(stateobj);
     /*
       Storing client information in client document using appbase index method.
     */
@@ -401,12 +411,10 @@ var Addclient = React.createClass({
         Adding all the clients information into clientinfo array.
       */
       for(var i=0;i<res.hits.total;i++){
-        console.log(res.hits.hits[i]._source);
         var obj = {_id : res.hits.hits[i]._id,_source : res.hits.hits[i]._source};
         addclientobj.setState({clientinfo : addclientobj.state.clientinfo.concat([obj])});
       }
     }).on('error', function(err) {
-      console.log("dwuhduwhduhw");
       console.log("search error: ", err);
     });
   },
