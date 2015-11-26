@@ -18,6 +18,7 @@ var Query = React.createClass({
       var date = new Date();
       appbase.index({
         type: 'notification',
+        id: queryobj.props.queryid+response._id,
         body: { "clientid" : response._id, "message" : queryobj.props.queryinfo.msgval,"timestamp" : date.toISOString() }
       }).on('data', function(response) {
         console.log(response);
@@ -33,7 +34,7 @@ var Query = React.createClass({
     var queryid = this.props.queryid;
     return (
       <div>
-      <p>Queryid : {queryid}, Creator : {this.props.queryinfo.creator}</p>
+      <p><b>Querymsg</b> : {this.props.queryinfo.msgval}, <b>Creator</b> : {this.props.queryinfo.creator}</p>
       <p>Query : <b>{JSON.stringify(this.props.queryinfo.querymsg)}</b></p>
       </div>
     );
@@ -174,46 +175,50 @@ var NotificationPanel = React.createClass({
       body: { "querymsg" : notification_query, "creator" : notificationobj.state.creator, "msgval" : notificationobj.state.message }
     }).on('data', function(response) {
       console.log(response);
+      appbase.search({
+        type: "client",
+        body: notification_query
+      }).on('data', function(res) {
+        for(var i=0;i<res.hits.total;i++){
+          var dates = new Date();
+          appbase.index({
+            type: 'notification',
+            id: response._id+res.hits.hits[i]._id,
+            body: { "clientid" : res.hits.hits[i]._id, "message" : notificationobj.state.message,"timestamp" : dates.toISOString() }
+          }).on('data', function(response) {
+            console.log(response);
+          }).on('error', function(error) {
+            console.log(error);
+          });
+        }
+      }).on('error', function(err) {
+        console.log("search error: ", err);
+      });
     }).on('error', function(error) {
       console.log(error);
-    });
-
-    appbase.search({
-      type: "client",
-      body: notification_query
-    }).on('data', function(res) {
-      console.log(res);
-      for(var i=0;i<res.hits.total;i++){
-        var dates = new Date();
-        appbase.index({
-          type: 'notification',
-          body: { "clientid" : res.hits.hits[i]._id, "message" : notificationobj.state.message,"timestamp" : dates.toISOString() }
-        }).on('data', function(response) {
-          console.log(response);
-        }).on('error', function(error) {
-          console.log(error);
-        });
-      }
-    }).on('error', function(err) {
-      console.log("search error: ", err);
     });
   },
   render : function() {
     return (
       <div>
-        <b>Min Age : </b>
-        <input key={'minage'} onChange={this.saveMinage} value={this.state.minage}></input><br/>
-        <b>Max Age : </b>
-        <input key={'maxage'} onChange={this.saveMaxage} value={this.state.maxage}></input><br/>
-        <b>App Version : </b>
-        <input key={'appversion_no'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input><br/>
-       <b>Country : </b>
-        <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input><br/>
-        <b>Message : </b>
-        <input key={'message'} onChange={this.saveMessage} value={this.state.message}></input><br/>
+      <div className="well">
+      <b>
+        <p>{"{"}</p>
+        <p>{"'minage' : "}<input key={'minage'} onChange={this.saveMinage} value={this.state.minage}></input></p>
+        <p>{"'maxage' : "}
+        <input key={'maxage'} onChange={this.saveMaxage} value={this.state.maxage}></input></p>
+        <p>{"'appversion_no' : "}
+        <input key={'appversion_no'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input></p>
+        <p>{"'country' : "}
+        <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input></p>
+        <p>{"'message' : "}
+        <input key={'message'} onChange={this.saveMessage} value={this.state.message}></input></p>
+        <p>{"}"}</p>
+      </b>
         <b>Creator Name : </b>
         <input key={'creator'} onChange={this.saveCreator} value={this.state.creator}></input><br/>
-        <button onClick={this.sendNotification}>Send Notification</button>
+        <button className="btn btn-primary" onClick={this.sendNotification}>Send Notification</button>
+      </div>
       </div>
     );
   }
@@ -228,6 +233,14 @@ var NotificationPanel = React.createClass({
 var Client = React.createClass({
   getInitialState : function() {
     return {age : 20,appversion_no : 1,location : 'INDIA',msglist : []};
+  },
+  check : function(msg_id) {
+    var clientobj = this;
+    for(var i=0;i<clientobj.state.msglist.length;i++){
+      if(clientobj.state.msglist[i].msgid == msg_id)
+        return i;
+    }
+    return (-1);
   },
   componentWillMount : function() {
     var clientobj = this;
@@ -245,8 +258,9 @@ var Client = React.createClass({
       }
     }).on('data', function(res) {
       for(var i=0;i<res.hits.total;i++){
-        var obj = {"msg" : res.hits.hits[i]._source.message,"timestamp" : res.hits.hits[i]._source.timestamp};
-        clientobj.setState({msglist : clientobj.state.msglist.concat([obj])});
+        var obj = {"msgid" : res.hits.hits[i]._id, "msg" : res.hits.hits[i]._source.message,"timestamp" : res.hits.hits[i]._source.timestamp};
+        if(clientobj.check(obj.msgid) == -1)
+          clientobj.setState({msglist : clientobj.state.msglist.concat([obj])});
       }
     }).on('error', function(err) {
       console.log("search error: ", err);
@@ -264,8 +278,9 @@ var Client = React.createClass({
         }
       }
     }).on('data', function(response) {
-      var obj = {"msg" : response._source.message,"timestamp" : response._source.timestamp};
-      clientobj.setState({ msglist : clientobj.state.msglist.concat([obj]) });
+      var obj = {"msgid" : response._id,"msg" : response._source.message,"timestamp" : response._source.timestamp};
+      if(clientobj.check(obj.msgid) == -1)
+        clientobj.setState({ msglist : clientobj.state.msglist.concat([obj]) });
     }).on('error', function(error) {
       console.log("getStream() failed with: ", error)
     });
@@ -275,14 +290,16 @@ var Client = React.createClass({
     var clientid = this.props.clientid;
     return (
       <div>
-      <p>Client details</p>
-      <p>clientid : {clientid}, age : {this.props.clientinfo.age}, appversio_no : {this.props.clientinfo.appversion_no}, country : {this.props.clientinfo.country}</p>
-      <b><p id = {clientid}>{this.props.clientinfo.nickname} {this.state.msglist.length}</p></b>
+      <p>{JSON.stringify(this.props.clientinfo)}</p>
+      <p><b>Messages : {this.state.msglist.length}</b></p>
       <div className={"well"}>
         {
           this.state.msglist.map(function(msg){
             return (
-              <div><span key={msg.msg}>{msg.msg} </span><time className="timeago" dateTime={msg.timestamp}></time></div>
+              <div className="row">
+              <div className="col-md-7" key={msg.msg}>{msg.msg} </div>
+              <div className="col-md-5"><time align={"right"} className="timeago" dateTime={msg.timestamp}></time></div>
+              </div>
             )
           })
         }
@@ -306,7 +323,6 @@ var Addclient = React.createClass({
   },
   addclient : function() {
     var stateobj = this.state;
-    console.log(stateobj);
     /*
       Storing client information in client document using appbase index method.
     */
@@ -401,12 +417,10 @@ var Addclient = React.createClass({
         Adding all the clients information into clientinfo array.
       */
       for(var i=0;i<res.hits.total;i++){
-        console.log(res.hits.hits[i]._source);
         var obj = {_id : res.hits.hits[i]._id,_source : res.hits.hits[i]._source};
         addclientobj.setState({clientinfo : addclientobj.state.clientinfo.concat([obj])});
       }
     }).on('error', function(err) {
-      console.log("dwuhduwhduhw");
       console.log("search error: ", err);
     });
   },
@@ -437,21 +451,27 @@ var Addclient = React.createClass({
   },
   render : function() {
     var addclientobj = this;
-    
     return (
       <div>
-        <input key={'name'} onChange={this.saveNickname} value={this.state.nickname}></input>
-        <input key={'age'} onChange={this.saveAge} value={this.state.age}></input>
-        <input key={'appversionno'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input>
-        <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input>
+        <div className="well">
+        <b>
+        <p>{'{'}</p>
+        <p>{"'nickname' : '"}<input key={'name'} onChange={this.saveNickname} value={this.state.nickname}></input>{"',"}</p>
+        <p>{"'age' : '"}<input key={'age'} onChange={this.saveAge} value={this.state.age}></input>{"',"}</p>
+        <p>{"'appversionno' : '"}<input key={'appversionno'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input>{"',"}</p>
+        <p>{"'country' : '"}<input key={'country'} onChange={this.saveCountry} value={this.state.country}></input>{"',"}</p>
+        <p>{'}'}</p>
+        </b>
+        
         <p><b>JSON OBJECT</b> name  {this.state.nickname}, age {this.state.age}, appversion_no  {this.state.appversion_no}, country  {this.state.country} </p>
-        <button onClick={this.addclient}>Add Client</button>
+        <button className="btn btn-primary" onClick={this.addclient}>Add Client</button>
+        </div>
         {
           this.state.clientinfo.map(function(client){
             return (
               <div className="well">
               <Client key={client._id+"client"} clientinfo={client._source} clientid = {client._id} />
-              <button  id={client._id} key={client._id} onClick={addclientobj.removeclient}>Delete Client</button>
+              <button  id={client._id} className="btn btn-success" key={client._id} onClick={addclientobj.removeclient}>Delete Client</button>
               </div>
             )
           })
