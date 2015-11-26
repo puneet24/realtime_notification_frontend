@@ -34,8 +34,7 @@ var Query = React.createClass({
     var queryid = this.props.queryid;
     return (
       <div>
-      <p>Queryid : {queryid}, Creator : {this.props.queryinfo.creator}</p>
-      <p>querymsg : {this.props.queryinfo.msgval}</p>
+      <p><b>Querymsg</b> : {this.props.queryinfo.msgval}, <b>Creator</b> : {this.props.queryinfo.creator}</p>
       <p>Query : <b>{JSON.stringify(this.props.queryinfo.querymsg)}</b></p>
       </div>
     );
@@ -202,19 +201,24 @@ var NotificationPanel = React.createClass({
   render : function() {
     return (
       <div>
-        <b>Min Age : </b>
-        <input key={'minage'} onChange={this.saveMinage} value={this.state.minage}></input><br/>
-        <b>Max Age : </b>
-        <input key={'maxage'} onChange={this.saveMaxage} value={this.state.maxage}></input><br/>
-        <b>App Version : </b>
-        <input key={'appversion_no'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input><br/>
-       <b>Country : </b>
-        <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input><br/>
-        <b>Message : </b>
-        <input key={'message'} onChange={this.saveMessage} value={this.state.message}></input><br/>
+      <div className="well">
+      <b>
+        <p>{"{"}</p>
+        <p>{"'minage' : "}<input key={'minage'} onChange={this.saveMinage} value={this.state.minage}></input></p>
+        <p>{"'maxage' : "}
+        <input key={'maxage'} onChange={this.saveMaxage} value={this.state.maxage}></input></p>
+        <p>{"'appversion_no' : "}
+        <input key={'appversion_no'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input></p>
+        <p>{"'country' : "}
+        <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input></p>
+        <p>{"'message' : "}
+        <input key={'message'} onChange={this.saveMessage} value={this.state.message}></input></p>
+        <p>{"}"}</p>
+      </b>
         <b>Creator Name : </b>
         <input key={'creator'} onChange={this.saveCreator} value={this.state.creator}></input><br/>
-        <button onClick={this.sendNotification}>Send Notification</button>
+        <button className="btn btn-primary" onClick={this.sendNotification}>Send Notification</button>
+      </div>
       </div>
     );
   }
@@ -286,14 +290,16 @@ var Client = React.createClass({
     var clientid = this.props.clientid;
     return (
       <div>
-      <p>Client details</p>
-      <p>clientid : {clientid}, age : {this.props.clientinfo.age}, appversio_no : {this.props.clientinfo.appversion_no}, country : {this.props.clientinfo.country}</p>
-      <b><p id = {clientid}>{this.props.clientinfo.nickname} {this.state.msglist.length}</p></b>
+      <p>{JSON.stringify(this.props.clientinfo)}</p>
+      <p><b>Messages : {this.state.msglist.length}</b></p>
       <div className={"well"}>
         {
           this.state.msglist.map(function(msg){
             return (
-              <div><span key={msg.msg}>{msg.msg} </span><time className="timeago" dateTime={msg.timestamp}></time></div>
+              <div className="row">
+              <div className="col-md-7" key={msg.msg}>{msg.msg} </div>
+              <div className="col-md-5"><time align={"right"} className="timeago" dateTime={msg.timestamp}></time></div>
+              </div>
             )
           })
         }
@@ -445,21 +451,27 @@ var Addclient = React.createClass({
   },
   render : function() {
     var addclientobj = this;
-    
     return (
       <div>
-        <input key={'name'} onChange={this.saveNickname} value={this.state.nickname}></input>
-        <input key={'age'} onChange={this.saveAge} value={this.state.age}></input>
-        <input key={'appversionno'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input>
-        <input key={'country'} onChange={this.saveCountry} value={this.state.country}></input>
+        <div className="well">
+        <b>
+        <p>{'{'}</p>
+        <p>{"'nickname' : '"}<input key={'name'} onChange={this.saveNickname} value={this.state.nickname}></input>{"',"}</p>
+        <p>{"'age' : '"}<input key={'age'} onChange={this.saveAge} value={this.state.age}></input>{"',"}</p>
+        <p>{"'appversionno' : '"}<input key={'appversionno'} onChange={this.saveAppversionno} value={this.state.appversion_no}></input>{"',"}</p>
+        <p>{"'country' : '"}<input key={'country'} onChange={this.saveCountry} value={this.state.country}></input>{"',"}</p>
+        <p>{'}'}</p>
+        </b>
+        
         <p><b>JSON OBJECT</b> name  {this.state.nickname}, age {this.state.age}, appversion_no  {this.state.appversion_no}, country  {this.state.country} </p>
-        <button onClick={this.addclient}>Add Client</button>
+        <button className="btn btn-primary" onClick={this.addclient}>Add Client</button>
+        </div>
         {
           this.state.clientinfo.map(function(client){
             return (
               <div className="well">
               <Client key={client._id+"client"} clientinfo={client._source} clientid = {client._id} />
-              <button  id={client._id} key={client._id} onClick={addclientobj.removeclient}>Delete Client</button>
+              <button  id={client._id} className="btn btn-success" key={client._id} onClick={addclientobj.removeclient}>Delete Client</button>
               </div>
             )
           })
