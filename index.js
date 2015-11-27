@@ -22,11 +22,16 @@ var Query = React.createClass({
         body: { "clientid" : response._id, "message" : queryobj.props.queryinfo.msgval,"timestamp" : date.toISOString() }
       }).on('data', function(response) {
         console.log(response);
+        var selector = "div#"+queryobj.props.queryid;
+        $(selector).css("background","aqua");
+        setTimeout( function(){ 
+          $(selector).css("background","rgb(245, 245, 245) none repeat scroll 0% 0% / auto padding-box border-box");
+        },10000);
       }).on('error', function(error) {
         console.log(error);
       });
     }).on('error', function(error) {
-      console.log("getStream() failed with: ", error)
+      console.log("getStream() failed with: ", error);
     });
   },
   render : function() {
@@ -44,6 +49,31 @@ var Query = React.createClass({
 var ActiveNotification = React.createClass({
   getInitialState : function() {
     return {queryinfo : []};
+  },
+  removequery : function(event) {
+    var notificationobj = this;
+    var id = event.target.id;
+    var pos = -1;
+    for(var i=0;i<notificationobj.state.queryinfo.length;i++){
+      if(notificationobj.state.queryinfo[i]._id == id){
+        pos = i;
+        break;
+      }
+    } 
+    var newarray = notificationobj.state.queryinfo;
+    newarray.splice(pos,1);
+    notificationobj.setState({ queryinfo : newarray });
+    /*
+      Deleting this client entry from client document at appbase.
+    */
+    appbase.delete({
+      type: 'notification_queries',
+      id : event.target.id
+    }).on('data', function(res) {
+      console.log("successfully deleted: ", res);
+    }).on('error', function(err) {
+      console.log("deletion error: ", err);
+    });
   },
   componentWillMount : function() {
     var notificationobj = this;
@@ -96,13 +126,15 @@ var ActiveNotification = React.createClass({
     });
   },
   render : function() {
+    var notificationobj = this;
     return (
       <div>
         {
           this.state.queryinfo.map(function(query){
             return (
-              <div className="well">
+              <div className="well" id={query._id}>
               <Query key={query._id+"query"} queryinfo={query._source} queryid = {query._id} />
+              <button id={query._id} className={"btn btn-success"} onClick={notificationobj.removequery}>Delete Query</button>
               </div>
             )
           })
@@ -259,13 +291,13 @@ var Client = React.createClass({
     }).on('data', function(res) {
       for(var i=0;i<res.hits.total;i++){
         var obj = {"msgid" : res.hits.hits[i]._id, "msg" : res.hits.hits[i]._source.message,"timestamp" : res.hits.hits[i]._source.timestamp};
-        if(clientobj.check(obj.msgid) == -1)
+        if(clientobj.check(obj.msgid) == -1){
           clientobj.setState({msglist : clientobj.state.msglist.concat([obj])});
+        }
       }
     }).on('error', function(err) {
       console.log("search error: ", err);
     });
-
     /*
       Appbase search stream method for fetching notificaton messages whenever any notification hits in 
       appbase notification document.
@@ -279,8 +311,14 @@ var Client = React.createClass({
       }
     }).on('data', function(response) {
       var obj = {"msgid" : response._id,"msg" : response._source.message,"timestamp" : response._source.timestamp};
-      if(clientobj.check(obj.msgid) == -1)
+      if(clientobj.check(obj.msgid) == -1){
         clientobj.setState({ msglist : clientobj.state.msglist.concat([obj]) });
+        var selector = "div#"+clientid;
+        $(selector).css("background","aqua");
+        setTimeout( function(){ 
+          $(selector).css("background","rgb(245, 245, 245) none repeat scroll 0% 0% / auto padding-box border-box");
+        },10000);
+      }
     }).on('error', function(error) {
       console.log("getStream() failed with: ", error)
     });
@@ -469,7 +507,7 @@ var Addclient = React.createClass({
         {
           this.state.clientinfo.map(function(client){
             return (
-              <div className="well">
+              <div className="well" id={client._id}>
               <Client key={client._id+"client"} clientinfo={client._source} clientid = {client._id} />
               <button  id={client._id} className="btn btn-success" key={client._id} onClick={addclientobj.removeclient}>Delete Client</button>
               </div>
